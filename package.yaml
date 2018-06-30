@@ -1,0 +1,75 @@
+name: mass-driver
+version: 0.1.0.0
+homepage: https://github.com/jml/mass-driver#readme
+license: Apache
+author: Jonathan Lange
+maintainer: jml@mumak.net
+copyright: Jonathan M. Lange
+
+extra-source-files:
+  - README.rst
+  - CHANGELOG.rst
+
+synopsis: Short description of your package
+category: Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README file.
+description: Please see the README on GitHub at <https://github.com/jml/mass-driver#readme>
+
+ghc-options: -Wall -Werror
+default-extensions:
+  - NamedFieldPuns  # Allow `FooRecord{foo, bar, baz} = fooRecord`
+  - NoImplicitPrelude  # We use Protolude as the standard Prelude
+  - OverloadedStrings  # Allow Haskell to interpret string literals as Text, ByteString, etc.
+
+dependencies:
+  - base >= 4.7 && < 5
+  - protolude
+
+library:
+  source-dirs: src
+  dependencies:
+    - optparse-applicative
+
+benchmarks:
+  mass-driver-benchmarks:
+    source-dirs: benchmarks
+    main: Main.hs
+    dependencies:
+      - mass-driver
+      - criterion
+    ghc-options:
+      - -rtsopts
+      - -threaded
+      - -with-rtsopts=-N
+
+tests:
+  mass-driver-tests:
+    source-dirs: tests
+    main: Main.hs
+    dependencies:
+      - mass-driver
+      - hedgehog
+      - tasty
+      - tasty-discover
+      - tasty-hedgehog
+      - tasty-hspec
+    ghc-options:
+      - -rtsopts
+      - -threaded
+      - -with-rtsopts=-N
+
+executables:
+  mass-driver:
+    main: Main.hs
+    source-dirs: cmd
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - mass-driver
+      - optparse-applicative
+

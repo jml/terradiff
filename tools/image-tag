@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#
+# Generate an image tag with the Git branch, Git SHA1, and a "-WIP" suffix if
+# there are local changes.
+#
+# Assumes it is being run inside a Git repository.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+BRANCH_PREFIX=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [ -z "${BRANCH_PREFIX}" ]; then
+    echo "unversioned"
+else
+    WORKING_SUFFIX=$(if ! git diff --exit-code --quiet HEAD >&2; \
+                     then echo "-WIP"; \
+                     else echo ""; \
+                     fi)
+    echo "${BRANCH_PREFIX//\//-}-$(git rev-parse --short HEAD)$WORKING_SUFFIX"
+fi

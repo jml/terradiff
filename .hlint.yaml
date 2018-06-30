@@ -1,0 +1,115 @@
+# HLint configuration file
+# https://github.com/ndmitchell/hlint
+##########################
+
+
+# Adjust hlint for Protolude, which uses `identity` instead of `id`
+- ignore: {name: Redundant id}
+- ignore: {lhs: map id, rhs: id}
+- ignore: {lhs: concatMap id, rhs: concat}
+- ignore: {name: Evaluate}
+
+- warn: {lhs: identity x, rhs: x, side: not (isTypeApp x), name: Redundant identity}
+- warn: {lhs: identity . x, rhs: x, name: Redundant identity}
+- warn: {lhs: x . identity, rhs: x, name: Redundant identity}
+- warn: {lhs: map identity, rhs: identity}
+- warn: {lhs: concatMap identity, rhs: concat}
+
+# We have to manually re-enable all of the Evaluate hints, because there's no
+# way to just disable the evaluate hint for redundant id.
+#
+# See https://github.com/ndmitchell/hlint/issues/507
+- warn: {lhs: True && x, rhs: x, name: Evaluate'}
+- warn: {lhs: False && x, rhs: "False", name: Evaluate'}
+- warn: {lhs: True || x, rhs: "True", name: Evaluate'}
+- warn: {lhs: False || x, rhs: x, name: Evaluate'}
+- warn: {lhs: not True, rhs: "False", name: Evaluate'}
+- warn: {lhs: not False, rhs: "True", name: Evaluate'}
+- warn: {lhs: Nothing >>= k, rhs: Nothing, name: Evaluate'}
+- warn: {lhs: k =<< Nothing, rhs: Nothing, name: Evaluate'}
+- warn: {lhs: either f g (Left x), rhs: f x, name: Evaluate'}
+- warn: {lhs: either f g (Right y), rhs: g y, name: Evaluate'}
+- warn: {lhs: "fst (x,y)", rhs: x, name: Evaluate'}
+- warn: {lhs: "snd (x,y)", rhs: "y", name: Evaluate'}
+- warn: {lhs: f (fst p) (snd p), rhs: uncurry f p, name: Evaluate'}
+- warn: {lhs: "init [x]", rhs: "[]", name: Evaluate'}
+- warn: {lhs: "null []", rhs: "True", name: Evaluate'}
+- warn: {lhs: "length []", rhs: "0", name: Evaluate'}
+- warn: {lhs: "foldl f z []", rhs: z, name: Evaluate'}
+- warn: {lhs: "foldr f z []", rhs: z, name: Evaluate'}
+- warn: {lhs: "foldr1 f [x]", rhs: x, name: Evaluate'}
+- warn: {lhs: "scanr f z []", rhs: "[z]", name: Evaluate'}
+- warn: {lhs: "scanr1 f []", rhs: "[]", name: Evaluate'}
+- warn: {lhs: "scanr1 f [x]", rhs: "[x]", name: Evaluate'}
+- warn: {lhs: "take n []", rhs: "[]", note: IncreasesLaziness, name: Evaluate'}
+- warn: {lhs: "drop n []", rhs: "[]", note: IncreasesLaziness, name: Evaluate'}
+- warn: {lhs: "takeWhile p []", rhs: "[]", name: Evaluate'}
+- warn: {lhs: "dropWhile p []", rhs: "[]", name: Evaluate'}
+- warn: {lhs: "span p []", rhs: "([],[])", name: Evaluate'}
+- warn: {lhs: lines "", rhs: "[]", name: Evaluate'}
+- warn: {lhs: "unwords []", rhs: "\"\"", name: Evaluate'}
+- warn: {lhs: x - 0, rhs: x, name: Evaluate'}
+- warn: {lhs: x * 1, rhs: x, name: Evaluate'}
+- warn: {lhs: x / 1, rhs: x, name: Evaluate'}
+- warn: {lhs: "concat [a]", rhs: a, name: Evaluate'}
+- warn: {lhs: "concat []", rhs: "[]", name: Evaluate'}
+- warn: {lhs: "zip [] []", rhs: "[]", name: Evaluate'}
+- warn: {lhs: const x y, rhs: x, name: Evaluate'}
+
+
+# This rest of this file is a template configuration file, populated
+# with the default comments from hlint. Please customize it for your project:
+# https://github.com/ndmitchell/hlint#readme
+
+
+# Specify additional command line arguments
+#
+# - arguments: [--color, --cpp-simple, -XQuasiQuotes]
+
+
+# Control which extensions/flags/modules/functions can be used
+#
+# - extensions:
+#   - default: false # all extension are banned by default
+#   - name: [PatternGuards, ViewPatterns] # only these listed extensions can be used
+#   - {name: CPP, within: CrossPlatform} # CPP can only be used in a given module
+#
+# - flags:
+#   - {name: -w, within: []} # -w is allowed nowhere
+#
+# - modules:
+#   - {name: [Data.Set, Data.HashSet], as: Set} # if you import Data.Set qualified, it must be as 'Set'
+#   - {name: Control.Arrow, within: []} # Certain modules are banned entirely
+#
+# - functions:
+#   - {name: unsafePerformIO, within: []} # unsafePerformIO can only appear in no modules
+
+
+# Add custom hints for this project
+#
+# Will suggest replacing "wibbleMany [myvar]" with "wibbleOne myvar"
+# - error: {lhs: "wibbleMany [x]", rhs: wibbleOne x}
+
+
+# Turn on hints that are off by default
+#
+# Ban "module X(module X) where", to require a real export list
+# - warn: {name: Use explicit module export list}
+#
+# Replace a $ b $ c with a . b $ c
+# - group: {name: dollar, enabled: true}
+#
+# Generalise map to fmap, ++ to <>
+# - group: {name: generalise, enabled: true}
+
+
+# Ignore some builtin hints
+# - ignore: {name: Use let}
+# - ignore: {name: Use const, within: SpecialModule} # Only within certain modules
+
+# Define some custom infix operators
+# - fixity: infixr 3 ~^#^~
+
+
+# To generate a suitable file for HLint do:
+# $ hlint --default > .hlint.yaml

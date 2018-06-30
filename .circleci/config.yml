@@ -1,0 +1,44 @@
+version: 2
+jobs:
+  build:
+    docker:
+      # Update stack.yaml when you change this.
+      - image: fpco/stack-build:lts-11.15
+    steps:
+      - checkout
+      - setup_remote_docker
+      - restore_cache:
+          keys:
+            - stack-ghc-{{ checksum "stack.yaml" }}
+      - restore_cache:
+          keys:
+            - stack-deps-{{ checksum "package.yaml" }}
+      - run:
+          name: Set up Stack
+          command: stack setup --no-terminal --no-reinstall
+      - save_cache:
+          key: stack-ghc-{{ checksum "stack.yaml" }}
+          paths:
+            - /root/.stack
+      - run:
+          name: Install dependencies
+          command: stack build --skip-ghc-check --no-terminal --test --only-dependencies
+      - run:
+          name: Install hlint
+          command: stack install hlint
+      - save_cache:
+          key: stack-deps-{{ checksum "package.yaml" }}
+          paths:
+            - /root/.stack
+            - .stack-work
+      - run: apt update && apt install -y docker.io
+      - run: make all
+
+      - deploy:
+          name: Maybe push master images
+          command: |
+            if [ -z "${CIRCLE_TAG}" -a "${CIRCLE_BRANCH}" == "master" ]; then
+              # TODO: You will need to update this command if you are using a different registry.
+              docker login -u "$DOCKER_USER" -p "$DOCKER_PASS" quay.io
+              make publish-image
+            fi
