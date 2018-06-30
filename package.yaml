@@ -1,10 +1,10 @@
 name: mass-driver
 version: 0.1.0.0
 homepage: https://github.com/jml/mass-driver#readme
-license: Apache
+license: AGPL
 author: Jonathan Lange
 maintainer: jml@mumak.net
-copyright: Jonathan M. Lange
+copyright: (c) 2018 Jonathan M. Lange
 
 extra-source-files:
   - README.rst
