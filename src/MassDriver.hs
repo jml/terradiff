@@ -1,4 +1,5 @@
-module Lib
+-- | Terraforming with style.
+module MassDriver
   ( Config
   , options
   , someFunc

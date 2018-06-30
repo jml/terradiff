@@ -1,4 +1,4 @@
-module LibTest where
+module MassDriverTest where
 
 import Protolude
 
@@ -10,16 +10,16 @@ import qualified Hedgehog.Range as Range
 
 import Test.Tasty.Hspec (Spec, describe, it, shouldBe)
 
-import qualified Lib
+import qualified MassDriver
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
 
-spec_lib :: Spec
-spec_lib =
+spec_massDriver :: Spec
+spec_massDriver =
   describe "someFunc" $
     it "adds numbers" $ do
       let expected = 2
-      let observed = Lib.someFunc 1 1
+      let observed = MassDriver.someFunc 1 1
       observed `shouldBe` expected
 
 -- | 'someFunc' is commutative.
@@ -28,4 +28,4 @@ hprop_someFuncCommutative =
   property $ do
     x <- forAll $ Gen.int Range.linearBounded
     y <- forAll $ Gen.int Range.linearBounded
-    Lib.someFunc x y === Lib.someFunc y x
+    MassDriver.someFunc x y === MassDriver.someFunc y x

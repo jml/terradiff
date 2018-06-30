@@ -10,7 +10,7 @@ extra-source-files:
   - README.rst
   - CHANGELOG.rst
 
-synopsis: Short description of your package
+synopsis: Terraforming with style
 category: Web
 
 # To avoid duplicated efforts in documentation and dealing with the
