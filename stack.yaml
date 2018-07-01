@@ -1,7 +1,29 @@
 resolver: lts-11.15
 
 packages:
-- .
+  - '.'
+
+# Need this because of the following error that jml doesn't understand:
+#
+# Error: While constructing the build plan, the following exceptions were encountered:
+#
+# In the dependencies for transformers-compat-0.6.2:
+#     transformers-0.5.2.0 from stack configuration does not match >=0.3 && ==0.2.*
+# needed due to mass-driver-0.1.0.0 -> transformers-compat-0.6.2
+allow-newer: true
+
+extra-deps:
+  - git: https://github.com/jml/jml-web-service.git
+    # Late enough to have unreleased v0.2.0 refactorings
+    commit: 44d262d2eacb007926e7a016ec2ce6c3d2c4b58f
+  - aeson-1.4.0.0
+  - base-compat-0.10.1
+  - exceptions-0.10.0
+  - http-api-data-0.3.8.1
+  - servant-0.14
+  - servant-lucid-0.8.1
+  - servant-server-0.14
+  - transformers-compat-0.6.2
 
 image:
   container:

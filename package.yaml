@@ -31,7 +31,13 @@ dependencies:
 library:
   source-dirs: src
   dependencies:
+    - jml-web-service
+    - lucid
+    - network-uri
     - optparse-applicative
+    - servant >= 0.14  # Get the better linking utilities
+    - servant-lucid
+    - servant-server >= 0.14
 
 benchmarks:
   mass-driver-benchmarks:

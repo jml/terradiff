@@ -20,27 +20,41 @@ module MassDriver
   ( Config
   , options
   , someFunc
+  , run
   ) where
 
 import Protolude
 
+import qualified JmlSvc
 import qualified Options.Applicative as Opt
 
+import qualified MassDriver.API as API
+
 -- | Overall command-line configuration.
-data Config = Config deriving (Eq, Show)
+data Config
+  = Config
+  { serverConfig :: JmlSvc.Config
+  , apiConfig :: API.Config
+  }
+  deriving (Eq, Show)
 
 -- | Command-line parser for mass-driver.
 options :: Opt.ParserInfo Config
 options = Opt.info (Opt.helper <*> parser) description
   where
-    parser = pure Config
+    parser = Config <$> JmlSvc.flags <*> API.flags
 
     description =
       fold
         [ Opt.fullDesc
-        , Opt.progDesc "short description of your program"
-        , Opt.header "mass-driver - short description of your program"
+        , Opt.progDesc "Terraform with style"
+        , Opt.header "mass-driver - automatically apply Terraform configurations"
         ]
+
+-- | Run the mass-driver API server.
+run :: MonadIO io => Config -> io ()
+run Config{serverConfig, apiConfig} =
+  JmlSvc.run "mass-driver" serverConfig (API.app apiConfig)
 
 someFunc :: Int -> Int -> Int
 someFunc x y = x + y
