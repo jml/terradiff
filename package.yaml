@@ -31,13 +31,16 @@ dependencies:
 library:
   source-dirs: src
   dependencies:
+    - bytestring
     - jml-web-service
     - lucid
     - network-uri
     - optparse-applicative
+    - process
     - servant >= 0.14  # Get the better linking utilities
     - servant-lucid
     - servant-server >= 0.14
+    - unix
 
 benchmarks:
   mass-driver-benchmarks:

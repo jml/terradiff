@@ -6,7 +6,7 @@
 module MassDriver.API
   ( API
   , api
-  , Config
+  , APIConfig
   , flags
   , server
   , app
@@ -24,18 +24,20 @@ import Servant.HTML.Lucid (HTML)
 import Servant.Server (hoistServer)
 import Servant.Utils.StaticFiles (serveDirectoryWebApp)
 
+import qualified MassDriver.Terraform as Terraform
+
 -- | Configuration for the API. Mostly used for the HTML rendering.
-data Config
-  = Config
+data APIConfig
+  = APIConfig
   { externalURL :: URI  -- ^ Publicly visible base URL of the service, used for making links
   , staticDir :: FilePath  -- ^ Directory containing static resources
   , sourceURL :: URI -- ^ Where the source code for the API server lives
   } deriving (Eq, Show)
 
 -- | Configure the API via the command-line.
-flags :: Opt.Parser Config
+flags :: Opt.Parser APIConfig
 flags =
-  Config
+  APIConfig
   <$> Opt.option
         (Opt.eitherReader parseURI)
         (fold
@@ -61,10 +63,17 @@ flags =
     upstreamURL = fromMaybe (panic ("Invalid source code URI in source code: " <> toS upstreamURL')) (URI.parseAbsoluteURI upstreamURL')
     upstreamURL' = "https://github.com/jml/mass-driver"
 
+-- | Configuration from the whole application, used in various handlers.
+data Config
+  = Config
+  { apiConfig :: APIConfig
+  , terraformConfig :: Terraform.Config
+  } deriving (Eq, Show)
 
 -- | mass-driver API definition.
 type API
-  = StaticResources
+  = "api" :> "plan" :> Get '[HTML] (Page TerraformPlan)
+  :<|> StaticResources
   :<|> Get '[HTML] (Page Root)
 
 -- | Where all of our stylesheets live.
@@ -75,13 +84,14 @@ api :: Proxy API
 api = Proxy
 
 -- | WAI application that implements 'API'.
-app :: Config -> Servant.Application
-app config = Servant.serve api (server config)
+app :: APIConfig -> Terraform.Config -> Servant.Application
+app apiConfig terraformConfig = Servant.serve api (server (Config apiConfig terraformConfig))
 
 -- | Server-side implementation of 'API'.
 server :: Config -> Servant.Server API
 server config = hoistServer api (`runReaderT` config)
-  ( serveDirectoryWebApp (staticDir config)
+  ( loadTerraformPlan
+    :<|> serveDirectoryWebApp (staticDir (apiConfig config))
     :<|> makePage "mass-driver" Root
   )
 
@@ -96,10 +106,64 @@ instance ToHtml Root where
         h1_ [class_ "display-3"] "mass-driver"
         p_ "Automatically apply Terraform configurations for great impact."
 
+-- | The results of @terraform plan@.
+--
+-- Although we'll probably always want a type for this, it will probably look
+-- quite different in the future.
+data TerraformPlan
+  = TerraformPlan
+  { initResult :: ProcessResult
+  , planResult :: ProcessResult
+  } deriving (Eq, Show)
+
+instance ToHtml TerraformPlan where
+  toHtmlRaw = toHtml
+  toHtml TerraformPlan{initResult, planResult} =
+    div_ [class_ "container"] $ do
+      h1_ "terraform plan"
+      toHtml initResult
+      toHtml planResult
+
+-- | The result of running a process. Includes a field for describing the
+-- process to make HTML rendering easier.
+data ProcessResult
+  = ProcessResult
+  { processTitle :: Text
+  , processExitCode :: ExitCode
+  , processOutput :: ByteString
+  , processError :: ByteString
+  } deriving (Eq, Show)
+
+instance ToHtml ProcessResult where
+  toHtmlRaw = toHtml
+  toHtml ProcessResult{processTitle, processExitCode, processOutput, processError} =
+    div_ [class_ "container"] $ do
+      h2_ (toHtml processTitle)
+      dl_ $ do
+        dt_ "Exit code"
+        dd_ (toHtml (show processExitCode :: Text))
+        dt_ "stdout"
+        dd_ $ pre_ (toHtml processOutput)
+        dt_ "stderr"
+        dd_ $ pre_ (toHtml processError)
+
+
+loadTerraformPlan :: ReaderT Config Servant.Handler (Page TerraformPlan)
+loadTerraformPlan = do
+  Config{terraformConfig} <- ask
+  -- TODO: Better error control. Don't run 'plan' if 'init' fails.
+  initResult <- runProcess "init" $ Terraform.init terraformConfig
+  planResult <- runProcess "plan" $ Terraform.plan terraformConfig
+  makePage "terraform plan" $ TerraformPlan initResult planResult
+  where
+    runProcess name action = do
+      (exitCode, out, err) <- liftIO action
+      pure $ ProcessResult name exitCode out err
+
 -- | A standard HTML page in the mass-driver app.
 data Page a
   = Page
-  { config :: Config -- ^ The configuration for the app
+  { config :: APIConfig -- ^ The configuration for the app
   , title :: Text  -- ^ The title of the page
   , content :: a  -- ^ The main content
   } deriving (Eq, Show)
@@ -127,8 +191,8 @@ instance ToHtml a => ToHtml (Page a) where
 -- | Link to a resource within our static resources.
 --
 -- e.g. staticLink config "style.css"
-staticLink :: Config -> Text -> Attribute
-staticLink Config{externalURL} resourcePath =
+staticLink :: APIConfig -> Text -> Attribute
+staticLink APIConfig{externalURL} resourcePath =
   Servant.safeLink' (uriHref_ . addSuffix . makeAbsolute) api (Proxy @StaticResources)
   where
     makeAbsolute link' = Servant.linkURI link' `URI.relativeTo` externalURL
@@ -141,5 +205,5 @@ uriHref_ uri = href_ (show uri)
 -- | Make a standard HTML page in the compare revisions app.
 makePage :: MonadReader Config m => Text -> body -> m (Page body)
 makePage title body = do
-  config <- ask
-  pure (Page config title body)
+  Config{apiConfig} <- ask
+  pure (Page apiConfig title body)

@@ -29,12 +29,14 @@ import qualified JmlSvc
 import qualified Options.Applicative as Opt
 
 import qualified MassDriver.API as API
+import qualified MassDriver.Terraform as Terraform
 
 -- | Overall command-line configuration.
 data Config
   = Config
   { serverConfig :: JmlSvc.Config
-  , apiConfig :: API.Config
+  , apiConfig :: API.APIConfig
+  , terraformConfig :: Terraform.FlagConfig
   }
   deriving (Eq, Show)
 
@@ -42,8 +44,7 @@ data Config
 options :: Opt.ParserInfo Config
 options = Opt.info (Opt.helper <*> parser) description
   where
-    parser = Config <$> JmlSvc.flags <*> API.flags
-
+    parser = Config <$> JmlSvc.flags <*> API.flags <*> Terraform.flags
     description =
       fold
         [ Opt.fullDesc
@@ -53,8 +54,9 @@ options = Opt.info (Opt.helper <*> parser) description
 
 -- | Run the mass-driver API server.
 run :: MonadIO io => Config -> io ()
-run Config{serverConfig, apiConfig} =
-  JmlSvc.run "mass-driver" serverConfig (API.app apiConfig)
+run Config{serverConfig, apiConfig, terraformConfig} = do
+  tfConfig <- Terraform.validateFlagConfig terraformConfig
+  JmlSvc.run "mass-driver" serverConfig (API.app apiConfig tfConfig)
 
 someFunc :: Int -> Int -> Int
 someFunc x y = x + y
