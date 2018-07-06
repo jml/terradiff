@@ -112,7 +112,14 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials} args = do
               { Process.env = Just env
               , Process.cwd = Just workingDirectory
               }
-    env = [("TF_IN_AUTOMATION", "1")] <> maybe [] awsCredentialsToEnvVars awsCredentials
+    -- See https://www.terraform.io/docs/configuration/environment-variables.html
+    -- and https://www.terraform.io/guides/running-terraform-in-automation.html
+    -- for more information.
+    env = [ ("TF_IN_AUTOMATION", "1")  -- Subtly change the output to be more appropriate to automation
+          , ("TF_INPUT", "0")  -- Do not prompt for user input
+          , ("TF_CLI_ARGS", "-no-color")  -- Don't use color, for better HTML rendering
+          ] <> awsCreds
+    awsCreds = maybe [] awsCredentialsToEnvVars awsCredentials
 
 -- | Initialize a Terraform working directory.
 --
@@ -125,12 +132,12 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials} args = do
 -- behind our backs.
 init :: Config -> IO (ExitCode, ByteString, ByteString)
 init config =
-  runTerraform config ["init", "-input=False", "-no-color", toS (terraformPath config)]
+  runTerraform config ["init", toS (terraformPath config)]
 
 -- | Generate a Terraform plan.
 plan :: Config -> IO (ExitCode, ByteString, ByteString)
 plan config =
-  runTerraform config ["plan", "-input=False", "-no-color", "-detailed-exitcode", toS (terraformPath config)]
+  runTerraform config ["plan", "-detailed-exitcode", toS (terraformPath config)]
 
 -- | Files that contain AWS credentials.
 --
