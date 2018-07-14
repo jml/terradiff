@@ -118,6 +118,7 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials} args = do
     env = [ ("TF_IN_AUTOMATION", "1")  -- Subtly change the output to be more appropriate to automation
           , ("TF_INPUT", "0")  -- Do not prompt for user input
           , ("TF_CLI_ARGS", "-no-color")  -- Don't use color, for better HTML rendering
+          , ("HOME", workingDirectory)  -- Terraform needs the home directory for variable expansion
           ] <> awsCreds
     awsCreds = maybe [] awsCredentialsToEnvVars awsCredentials
 
