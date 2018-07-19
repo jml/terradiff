@@ -7,6 +7,7 @@ module MassDriver.Terraform
   , validateFlagConfig
   -- * Actually using Terraform.
   , init
+  , refresh
   , plan
   ) where
 
@@ -135,10 +136,19 @@ init :: Config -> IO (ExitCode, ByteString, ByteString)
 init config =
   runTerraform config ["init", toS (terraformPath config)]
 
+-- | Refresh the Terraform state by examining actual infrastructure.
+--
+-- Run this before 'plan' to ensure your plans are based on reality.
+--
+-- NOTE: The output of this command might include secrets.
+refresh :: Config -> IO (ExitCode, ByteString, ByteString)
+refresh config =
+  runTerraform config ["refresh", toS (terraformPath config)]
+
 -- | Generate a Terraform plan.
 plan :: Config -> IO (ExitCode, ByteString, ByteString)
 plan config =
-  runTerraform config ["plan", "-detailed-exitcode", toS (terraformPath config)]
+  runTerraform config ["plan", "-detailed-exitcode", "-refresh=false", toS (terraformPath config)]
 
 -- | Files that contain AWS credentials.
 --

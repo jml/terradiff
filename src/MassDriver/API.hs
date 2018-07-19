@@ -113,15 +113,17 @@ instance ToHtml Root where
 data TerraformPlan
   = TerraformPlan
   { initResult :: ProcessResult
+  , refreshResult :: ProcessResult
   , planResult :: ProcessResult
   } deriving (Eq, Show)
 
 instance ToHtml TerraformPlan where
   toHtmlRaw = toHtml
-  toHtml TerraformPlan{initResult, planResult} =
+  toHtml TerraformPlan{initResult, refreshResult, planResult} =
     div_ [class_ "container"] $ do
       h1_ "terraform plan"
       toHtml initResult
+      toHtml refreshResult
       toHtml planResult
 
 -- | The result of running a process. Includes a field for describing the
@@ -153,8 +155,9 @@ loadTerraformPlan = do
   Config{terraformConfig} <- ask
   -- TODO: Better error control. Don't run 'plan' if 'init' fails.
   initResult <- runProcess "init" $ Terraform.init terraformConfig
+  refreshResult <- runProcess "refresh" $ Terraform.refresh terraformConfig
   planResult <- runProcess "plan" $ Terraform.plan terraformConfig
-  makePage "terraform plan" $ TerraformPlan initResult planResult
+  makePage "terraform plan" $ TerraformPlan initResult refreshResult planResult
   where
     runProcess name action = do
       (exitCode, out, err) <- liftIO action
