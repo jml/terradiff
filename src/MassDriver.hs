@@ -68,12 +68,12 @@ run :: Config -> IO ()
 run Config{serverConfig, apiConfig, terraformConfig, pollInterval} = do
   tfConfig <- Terraform.validateFlagConfig terraformConfig
   initResult <- Terraform.init tfConfig
-  case initResult of
-    (ExitFailure n, out, err) ->
+  case Terraform.processExitCode initResult of
+    ExitFailure n ->
       die (toS ("'terraform init' failed: " <> show n <> "\n" <>
-                "output:\n" <> out <> "\n" <>
-                "error:\n" <> err <> "\n"))
-    (ExitSuccess, _, _) ->
+                "output:\n" <> Terraform.processOutput initResult <> "\n" <>
+                "error:\n" <> Terraform.processError initResult <> "\n"))
+    _ ->
       Poll.runWhilePolling (Terraform.diff tfConfig) (Duration.toDiffTime pollInterval)
         (JmlSvc.run "mass-driver" serverConfig . API.app apiConfig)
 

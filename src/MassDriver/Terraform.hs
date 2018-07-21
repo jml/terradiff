@@ -108,12 +108,12 @@ validateFlagConfig FlagConfig{terraformBinary, workingDirectory, flagTerraformPa
   pure $ Config terraformBinary tfPath workDir awsCreds gitHubToken
 
 -- | Run Terraform.
-runTerraform :: Config -> [ByteString] -> IO (ExitCode, ByteString, ByteString)
-runTerraform Config{terraformBinary, workingDirectory, awsCredentials} args = do
+runTerraform :: Config -> ByteString -> [ByteString] -> IO ProcessResult
+runTerraform Config{terraformBinary, workingDirectory, awsCredentials} cmd args = do
   (exitCode, out, err) <- Process.readCreateProcessWithExitCode process ""
-  pure (exitCode, toS out, toS err)
+  pure (ProcessResult (toS cmd) exitCode (toS out) (toS err))
   where
-    process = (Process.proc terraformBinary (map toS args))
+    process = (Process.proc terraformBinary (map toS (cmd:args)))
               { Process.env = Just env
               , Process.cwd = Just workingDirectory
               }
@@ -131,13 +131,9 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials} args = do
 diff :: Config -> IO Plan
 diff terraformConfig = do
   -- TODO: Better error control. Don't run 'plan' if 'refresh' fails.
-  refreshResult <- runProcess "refresh" $ refresh terraformConfig
-  planResult <- runProcess "plan" $ plan terraformConfig
+  refreshResult <- refresh terraformConfig
+  planResult <- plan terraformConfig
   pure $ Plan refreshResult planResult
-  where
-    runProcess name action = do
-      (exitCode, out, err) <- liftIO action
-      pure $ ProcessResult name exitCode out err
 
 -- | The results of @terraform plan@.
 --
@@ -169,23 +165,23 @@ data ProcessResult
 -- parameter, thus "guaranteeing" that init has been run. 'Guarantee' in scare
 -- quotes as it wouldn't prevent someone messing with the .terraform directory
 -- behind our backs.
-init :: Config -> IO (ExitCode, ByteString, ByteString)
+init :: Config -> IO ProcessResult
 init config =
-  runTerraform config ["init", toS (terraformPath config)]
+  runTerraform config "init" [toS (terraformPath config)]
 
 -- | Refresh the Terraform state by examining actual infrastructure.
 --
 -- Run this before 'plan' to ensure your plans are based on reality.
 --
 -- NOTE: The output of this command might include secrets.
-refresh :: Config -> IO (ExitCode, ByteString, ByteString)
+refresh :: Config -> IO ProcessResult
 refresh config =
-  runTerraform config ["refresh", toS (terraformPath config)]
+  runTerraform config "refresh" [toS (terraformPath config)]
 
 -- | Generate a Terraform plan.
-plan :: Config -> IO (ExitCode, ByteString, ByteString)
+plan :: Config -> IO ProcessResult
 plan config =
-  runTerraform config ["plan", "-detailed-exitcode", "-refresh=false", toS (terraformPath config)]
+  runTerraform config "plan" ["-detailed-exitcode", "-refresh=false", toS (terraformPath config)]
 
 -- | Files that contain AWS credentials.
 --
