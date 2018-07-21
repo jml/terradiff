@@ -25,10 +25,14 @@ module MassDriver
 
 import Protolude
 
+import qualified Data.Attoparsec.Text as A
 import qualified JmlSvc
 import qualified Options.Applicative as Opt
 
 import qualified MassDriver.API as API
+import MassDriver.Duration (Duration)
+import qualified MassDriver.Duration as Duration
+import qualified MassDriver.Poll as Poll
 import qualified MassDriver.Terraform as Terraform
 
 -- | Overall command-line configuration.
@@ -37,6 +41,7 @@ data Config
   { serverConfig :: JmlSvc.Config
   , apiConfig :: API.APIConfig
   , terraformConfig :: Terraform.FlagConfig
+  , pollInterval :: Duration
   }
   deriving (Eq, Show)
 
@@ -44,7 +49,13 @@ data Config
 options :: Opt.ParserInfo Config
 options = Opt.info (Opt.helper <*> parser) description
   where
-    parser = Config <$> JmlSvc.flags <*> API.flags <*> Terraform.flags
+    parser = Config <$> JmlSvc.flags <*> API.flags <*> Terraform.flags <*> duration
+    duration =
+      Opt.option (Opt.eitherReader (A.parseOnly Duration.durationParser . toS))
+      (fold
+       [ Opt.long "poll-interval"
+       , Opt.help "How frequently to run 'terraform plan'"
+       ])
     description =
       fold
         [ Opt.fullDesc
@@ -53,10 +64,19 @@ options = Opt.info (Opt.helper <*> parser) description
         ]
 
 -- | Run the mass-driver API server.
-run :: MonadIO io => Config -> io ()
-run Config{serverConfig, apiConfig, terraformConfig} = do
+run :: Config -> IO ()
+run Config{serverConfig, apiConfig, terraformConfig, pollInterval} = do
   tfConfig <- Terraform.validateFlagConfig terraformConfig
-  JmlSvc.run "mass-driver" serverConfig (API.app apiConfig tfConfig)
+  initResult <- Terraform.init tfConfig
+  case initResult of
+    (ExitFailure n, out, err) ->
+      die (toS ("'terraform init' failed: " <> show n <> "\n" <>
+                "output:\n" <> out <> "\n" <>
+                "error:\n" <> err <> "\n"))
+    (ExitSuccess, _, _) ->
+      Poll.runWhilePolling (Terraform.diff tfConfig) (Duration.toDiffTime pollInterval)
+        (JmlSvc.run "mass-driver" serverConfig . API.app apiConfig)
 
 someFunc :: Int -> Int -> Int
 someFunc x y = x + y
+

@@ -24,6 +24,8 @@ import Servant.HTML.Lucid (HTML)
 import Servant.Server (hoistServer)
 import Servant.Utils.StaticFiles (serveDirectoryWebApp)
 
+import MassDriver.Poll (Poll)
+import qualified MassDriver.Poll as Poll
 import qualified MassDriver.Terraform as Terraform
 
 -- | Configuration for the API. Mostly used for the HTML rendering.
@@ -67,8 +69,8 @@ flags =
 data Config
   = Config
   { apiConfig :: APIConfig
-  , terraformConfig :: Terraform.Config
-  } deriving (Eq, Show)
+  , planPoller :: Poll Terraform.Plan
+  }
 
 -- | mass-driver API definition.
 type API
@@ -84,16 +86,23 @@ api :: Proxy API
 api = Proxy
 
 -- | WAI application that implements 'API'.
-app :: APIConfig -> Terraform.Config -> Servant.Application
+app :: APIConfig -> Poll Terraform.Plan -> Servant.Application
 app apiConfig terraformConfig = Servant.serve api (server (Config apiConfig terraformConfig))
 
 -- | Server-side implementation of 'API'.
 server :: Config -> Servant.Server API
 server config = hoistServer api (`runReaderT` config)
-  ( loadTerraformPlan
+  ( viewTerraformPlan
     :<|> serveDirectoryWebApp (staticDir (apiConfig config))
     :<|> makePage "mass-driver" Root
   )
+
+
+viewTerraformPlan :: ReaderT Config Servant.Handler (Page TerraformPlan)
+viewTerraformPlan = do
+  Config{planPoller} <- ask
+  plan <- liftIO (atomically (Poll.waitForResult planPoller))
+  makePage "terraform plan" (TerraformPlan plan)
 
 -- | Dummy type to represent the root page of the API.
 data Root = Root deriving (Eq, Show)
@@ -106,62 +115,32 @@ instance ToHtml Root where
         h1_ [class_ "display-3"] "mass-driver"
         p_ "Automatically apply Terraform configurations for great impact."
 
--- | The results of @terraform plan@.
---
--- Although we'll probably always want a type for this, it will probably look
--- quite different in the future.
-data TerraformPlan
-  = TerraformPlan
-  { initResult :: ProcessResult
-  , refreshResult :: ProcessResult
-  , planResult :: ProcessResult
-  } deriving (Eq, Show)
+-- | Simple wrapper for 'Plan' type so we can have all our HTML in one place.
+newtype TerraformPlan = TerraformPlan Terraform.Plan deriving (Eq, Show)
 
 instance ToHtml TerraformPlan where
   toHtmlRaw = toHtml
-  toHtml TerraformPlan{initResult, refreshResult, planResult} =
+  toHtml (TerraformPlan Terraform.Plan{Terraform.refreshResult, Terraform.planResult}) =
     div_ [class_ "container"] $ do
       h1_ "terraform plan"
-      toHtml initResult
-      toHtml refreshResult
-      toHtml planResult
-
--- | The result of running a process. Includes a field for describing the
--- process to make HTML rendering easier.
-data ProcessResult
-  = ProcessResult
-  { processTitle :: Text
-  , processExitCode :: ExitCode
-  , processOutput :: ByteString
-  , processError :: ByteString
-  } deriving (Eq, Show)
-
-instance ToHtml ProcessResult where
-  toHtmlRaw = toHtml
-  toHtml ProcessResult{processTitle, processExitCode, processOutput, processError} =
-    div_ [class_ "container"] $ do
-      h2_ (toHtml processTitle)
-      dl_ $ do
-        dt_ "Exit code"
-        dd_ (toHtml (show processExitCode :: Text))
-        dt_ "stdout"
-        dd_ $ pre_ (toHtml processOutput)
-        dt_ "stderr"
-        dd_ $ pre_ (toHtml processError)
-
-
-loadTerraformPlan :: ReaderT Config Servant.Handler (Page TerraformPlan)
-loadTerraformPlan = do
-  Config{terraformConfig} <- ask
-  -- TODO: Better error control. Don't run 'plan' if 'init' fails.
-  initResult <- runProcess "init" $ Terraform.init terraformConfig
-  refreshResult <- runProcess "refresh" $ Terraform.refresh terraformConfig
-  planResult <- runProcess "plan" $ Terraform.plan terraformConfig
-  makePage "terraform plan" $ TerraformPlan initResult refreshResult planResult
-  where
-    runProcess name action = do
-      (exitCode, out, err) <- liftIO action
-      pure $ ProcessResult name exitCode out err
+      processToHtml refreshResult
+      processToHtml planResult
+    where
+      processToHtml :: Monad m => Terraform.ProcessResult -> HtmlT m ()
+      processToHtml Terraform.ProcessResult { Terraform.processTitle
+                                            , Terraform.processExitCode
+                                            , Terraform.processOutput
+                                            , Terraform.processError
+                                            } =
+        div_ [class_ "container"] $ do
+          h2_ (toHtml processTitle)
+          dl_ $ do
+            dt_ "Exit code"
+            dd_ (toHtml (show processExitCode :: Text))
+            dt_ "stdout"
+            dd_ $ pre_ (toHtml processOutput)
+            dt_ "stderr"
+            dd_ $ pre_ (toHtml processError)
 
 -- | A standard HTML page in the mass-driver app.
 data Page a

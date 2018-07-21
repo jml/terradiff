@@ -5,6 +5,10 @@ module MassDriver.Terraform
   , flags
   , Config(..)
   , validateFlagConfig
+  -- * Higher level Terraform operations.
+  , Plan(..)
+  , ProcessResult(..)
+  , MassDriver.Terraform.diff
   -- * Actually using Terraform.
   , init
   , refresh
@@ -122,6 +126,39 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials} args = do
           , ("HOME", workingDirectory)  -- Terraform needs the home directory for variable expansion
           ] <> awsCreds
     awsCreds = maybe [] awsCredentialsToEnvVars awsCredentials
+
+-- | Get a Terraform "diff", actually the results of @terraform plan@.
+diff :: Config -> IO Plan
+diff terraformConfig = do
+  -- TODO: Better error control. Don't run 'plan' if 'refresh' fails.
+  refreshResult <- runProcess "refresh" $ refresh terraformConfig
+  planResult <- runProcess "plan" $ plan terraformConfig
+  pure $ Plan refreshResult planResult
+  where
+    runProcess name action = do
+      (exitCode, out, err) <- liftIO action
+      pure $ ProcessResult name exitCode out err
+
+-- | The results of @terraform plan@.
+--
+-- Although we'll probably always want a type for this, it will probably look
+-- quite different in the future.
+data Plan
+  = Plan
+  { refreshResult :: ProcessResult
+  , planResult :: ProcessResult
+  } deriving (Eq, Show)
+
+-- | The result of running a process. Includes a field for describing the
+-- process to make HTML rendering easier.
+data ProcessResult
+  = ProcessResult
+  { processTitle :: Text
+  , processExitCode :: ExitCode
+  , processOutput :: ByteString
+  , processError :: ByteString
+  } deriving (Eq, Show)
+
 
 -- | Initialize a Terraform working directory.
 --
