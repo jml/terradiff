@@ -4,7 +4,7 @@
 --
 -- Durations have a simple, standard format.
 
-module MassDriver.Duration
+module Terradiff.Duration
   ( Duration(..)
   , toDiffTime
   , formatDuration

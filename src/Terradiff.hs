@@ -2,21 +2,21 @@
 --
 -- Copyright (c) 2018 Jonathan M. Lange
 --
--- This file is part of mass-driver.
+-- This file is part of terradiff.
 --
--- mass-driver is free software: you can redistribute it and/or modify it
+-- terradiff is free software: you can redistribute it and/or modify it
 -- under the terms of the GNU Affero General Public License as published by
 -- the Free Software Foundation, either version 3 of the License, or (at your
 -- option) any later version.
 --
--- mass-driver is distributed in the hope that it will be useful, but WITHOUT
+-- terradiff is distributed in the hope that it will be useful, but WITHOUT
 -- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 -- FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
 -- for more details.
 --
 -- You should have received a copy of the GNU Affero General Public License
--- along with mass-driver. If not, see <https://www.gnu.org/licenses/>.
-module MassDriver
+-- along with terradiff. If not, see <https://www.gnu.org/licenses/>.
+module Terradiff
   ( Config
   , options
   , someFunc
@@ -29,11 +29,11 @@ import qualified Data.Attoparsec.Text as A
 import qualified JmlSvc
 import qualified Options.Applicative as Opt
 
-import qualified MassDriver.API as API
-import MassDriver.Duration (Duration)
-import qualified MassDriver.Duration as Duration
-import qualified MassDriver.Poll as Poll
-import qualified MassDriver.Terraform as Terraform
+import qualified Terradiff.API as API
+import Terradiff.Duration (Duration)
+import qualified Terradiff.Duration as Duration
+import qualified Terradiff.Poll as Poll
+import qualified Terradiff.Terraform as Terraform
 
 -- | Overall command-line configuration.
 data Config
@@ -45,7 +45,7 @@ data Config
   }
   deriving (Eq, Show)
 
--- | Command-line parser for mass-driver.
+-- | Command-line parser for terradiff.
 options :: Opt.ParserInfo Config
 options = Opt.info (Opt.helper <*> parser) description
   where
@@ -59,11 +59,11 @@ options = Opt.info (Opt.helper <*> parser) description
     description =
       fold
         [ Opt.fullDesc
-        , Opt.progDesc "Terraform with style"
-        , Opt.header "mass-driver - automatically apply Terraform configurations"
+        , Opt.progDesc "Daemonized 'terraform plan'"
+        , Opt.header "terradiff - see how Terraform configuration differs from reality"
         ]
 
--- | Run the mass-driver API server.
+-- | Run the terradiff API server.
 run :: Config -> IO ()
 run Config{serverConfig, apiConfig, terraformConfig, pollInterval} = do
   tfConfig <- Terraform.validateFlagConfig terraformConfig
@@ -75,7 +75,7 @@ run Config{serverConfig, apiConfig, terraformConfig, pollInterval} = do
                 "error:\n" <> Terraform.processError initResult <> "\n"))
     _ ->
       Poll.runWhilePolling (Terraform.diff tfConfig) (Duration.toDiffTime pollInterval)
-        (JmlSvc.run "mass-driver" serverConfig . API.app apiConfig)
+        (JmlSvc.run "terradiff" serverConfig . API.app apiConfig)
 
 someFunc :: Int -> Int -> Int
 someFunc x y = x + y

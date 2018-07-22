@@ -11,7 +11,7 @@ import qualified Hedgehog.Range as Range
 
 import Test.Tasty.Hspec (Spec, describe, it, shouldBe)
 
-import qualified MassDriver.Duration as Duration
+import qualified Terradiff.Duration as Duration
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
 

@@ -9,7 +9,7 @@ packages:
 #
 # In the dependencies for transformers-compat-0.6.2:
 #     transformers-0.5.2.0 from stack configuration does not match >=0.3 && ==0.2.*
-# needed due to mass-driver-0.1.0.0 -> transformers-compat-0.6.2
+# needed due to terradiff-0.1.0.0 -> transformers-compat-0.6.2
 allow-newer: true
 
 extra-deps:
@@ -27,7 +27,7 @@ extra-deps:
 
 image:
   container:
-    base: quay.io/jml0/mass-driver-base
-    name: quay.io/jml0/mass-driver
+    base: quay.io/jml0/terradiff-base
+    name: quay.io/jml0/terradiff
     executables:
-      - mass-driver
+      - terradiff

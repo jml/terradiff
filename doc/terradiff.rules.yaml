@@ -1,0 +1,22 @@
+# Example Prometheus alerting rules file for terradiff.
+groups:
+  - name: terradiff
+    rules:
+      - alert: Terradiff
+        expr: max(terradiff_plan_exit_code) == 2
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: Terraform config in Git differs from actual environment
+          impact: Environment may be broken, or we may be unable to use normal procedures to update the environment
+          url: <URL FOR TERRADIFF>  # 1. Replace this with the public URL for terradiff
+      - alert: TerradiffBroken
+        expr: max(terradiff_plan_exit_code) == 1
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: Terradiff deployment cannot run terraform plan
+          impact: We have no idea how much the actual environment has diverged from our configuration
+          url: <URL FOR TERRADIFF>  # 1. Replace this with the public URL for terradiff

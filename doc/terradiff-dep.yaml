@@ -1,0 +1,80 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terradiff
+  labels:
+    name: terradiff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: terradiff
+  template:
+    metadata:
+      labels:
+        name: terradiff
+    spec:
+      volumes:
+        - name: repo
+          emptyDir: {}
+        ### AWS Config ###
+        - name: aws-secret
+          secret:
+            secret-name: aws-secret
+        ### End AWS Config ###
+      containers:
+        - name: terradiff
+          image: jml0/terradiff:v<VERSION> # 1. Replace <VERSION> with the most recent release.
+          imagePullPolicy: IfNotPresent
+          args:
+            - --port 80
+            - --external-url http://<PUBLICLY FACING URL>  # 2. Replace <PUBLICLY FACING URL> with the publicly facing URL.
+            - --static-dir=/var/www/static  # 3. A path where Bootstrap CSS lives. This is the path used in the official container.
+            - --poll-interval=1m  # 4. How frequently to run `terraform plan`.
+            - --terraform-files=/data
+
+            ### AWS Config ###
+            # This access key will need enough permission to run `terraform
+            # plan` with your config.
+            - --aws-access-key-id-file /creds/aws/access_key_id
+            - --aws-secret-access-key-file /creds/aws/secret_access_key
+            ### End AWS Config ###
+          ports:
+            - name: terradiff
+              containerPort: 80
+          volumeMounts:
+            - name: repo
+              mountPath: /data
+            ### AWS Config ###
+            - name: aws-secret
+              mountPath: /creds/aws
+            ### End AWS Config ###
+        - name: git-sync
+          image: weaveworks/git-sync:<VERSION> # 5. Replace with the version of git-sync
+          args:
+            - -wait=60 # Number of seconds between runs of `git pull`.
+            - -dest=/data
+            ### Git Config ###
+            - -repo=https://github.com/<YOUR REPO HERE> # 6. Replace with a repository with your Terraform configuration.
+            ### End Git Config ###
+          env:
+            ### GitHub Config ###
+            # It is recommended that this be a different user to the one used
+            # by Terraform (if any). This user only needs enough permission to
+            # clone and pull the GitHub repository with your Terraform
+            # configuration.
+            - name: GIT_SYNC_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: git-sync-secret
+                  key: username
+            - name: GIT_SYNC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: git-sync-secret
+                  key: password
+            ### End GitHub Config ###
+          volumeMounts:
+            - name: repo
+              mountPath: /data

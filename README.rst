@@ -1,70 +1,87 @@
-=================================
-mass-driver: Terraform with style
-=================================
+=========
+terradiff
+=========
 
 .. image:: https://circleci.com/gh/jml/mass-driver/tree/master.svg?style=svg
     :target: https://circleci.com/gh/jml/mass-driver/tree/master
 
-tl;dr
-=====
-
- - Generate test Terraform plans for GitHub PRs
- - Manual review for Terraform plans generated from approved PRs about to be applied
- - Apply Terraform plans
+Get told when reality no longer matches your Terraform configuration.
 
 This project is not ready for general use.
 This README is an infelicitous mix of documentation, plans, aspirations, and notes to self.
 
-Example workflow
+Why you might want this
+=======================
+
+Say you've got some `Terraform`_ configuration in a Git repository somewhere.
+
+You will have some way of applying this configuration to your environments.
+You might run ``terraform`` manually, you might `run it from CI`_, or you
+might use a tool like `Atlantis`_.
+
+.. _`run it from CI`: https://www.terraform.io/guides/running-terraform-in-automation.html
+.. _`Atlantis`: https://www.runatlantis.io/
+
+No matter which of these you do, there might still be times when your actual
+environment will differ from what you intend in your configuration. Perhaps
+the config fails to apply. Perhaps someone made a direct change to the
+environment, circumventing your Terraform.
+
+When this happens, you want to be told. In fact, you want to be alerted, so
+you can take whatever action is necessary to reconcile your configuration and
+reality.
+
+What this does
+==============
+
+When deployed, terradiff monitors a Terraform configuration and runs
+``terraform plan`` every so often (every 2 minutes, say). It exports a
+Prometheus `gauge`_, ``terradiff_plan_exit_code``, that indicates whether
+``terraform plan`` succeeded with no diff (0), failed due to some kind of
+error (1), or succeeded with some kind of diff (2). See the `terraform plan
+manual`_ for more details.
+
+You can then configure a `Prometheus alert`_ that will tell you when there's a
+diff, or when the diffing process is broken.
+
+terradiff also serves a simple web UI that shows the full ``terraform plan``
+output. Your alert should link to that page so you can figure out what to do.
+
+How to deploy it
 ================
 
-Creating a GitHub repo
-----------------------
+terradiff is designed to run on Kubernetes. It is cloud native, if you're into
+that sort of thing.
 
- 1. Alex wants to create a ``mariner`` repo that anyone in the ``roci`` team can read and write to
- 2. Alex submits a PR to ``corp`` with Terraform configuration for such access
- 3. Bobbi sees the PR, but notes that there's no plan generated for it yet. She makes a note to come back in a while.
- 4. Bobbi comes back and sees the GitHub check that says a plan was successfully generated. The plan has also been posted as a comment by ``mass-driver`` bot
- 5. Bobbi thinks both the PR and plan look good, so she approves the PR
- 6. ``mass-driver`` detects the approval and adds this plan/PR to its queue
- 7.  When the plan/PR reaches the front of the queue, ``mass-driver`` generates an authoritative plan that, if approved, will be applied to the environment
- 8. ``mass-driver`` updates the PR, stating that the plan is ready for final approval before being applied, and giving a link to the apply page
- 9. Bobbi and Alex are notified through normal GitHub means that the plan for the PR is ready to be applied
- 10. Bobbi reviews the final plan, and indicates that it is OK to be applied now
- 11. ``mass-driver`` applies the plan.
- 12. ``mass-driver`` adds a comment to the PR confirming application and closes the PR
+It expects to run with a `git-sync`_ `sidecar`_ that pulls in your Terraform
+configuration from Git.
 
-Reflections on workflow
------------------------
+An `example Kubernetes Deployment manifest <doc/terradiff-dep.yaml>`_ can be
+found in this repository. It assumes you have a `Secret`_ named
+``git-sync-secret`` with your GitHub credentials for synchronising the
+repository with your Terraform configuration, and Secrets for any credentials
+required to run ``terraform plan`` on that configuration.
 
-Item 3 is obviously suboptimal.
-Ideally, ``mass-driver`` would request review only after generating a plan that can be reviewed.
+`Example alerting rules <doc/terradiff.rules.yaml>`_ are also provided.
 
-We have a series of open questions about how to mark approval. There are two approval steps:
+History
+=======
 
-  1. PR is OK to be enqueued
-  2. Final plan from PR is OK to be applied
-
-The questions are:
-
-  1. Are both of these things necessary?
-  2. How do we mark approval in each case?
-
-     - what is the UI?
-     - who is authorized to approve, and how?
-     - where do we store the approval status?
-
-Broadly, the options for 2 are either:
-
-  1. Comments on GitHub
-  2. Buttons on the ``mass-driver`` UI
-
-
-.. _`Terraform`: https://terraform.io
+This project is inspired by the use of Terraform at `Weaveworks`_. In
+particular, its lineage includes `prom-run`_.
 
 How to build this project
 =========================
 
 You really want to have `stack`_ installed, and to invoke it directly.
 
+.. _`Prometheus alert`: https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/
+.. _`Secret`: https://kubernetes.io/docs/concepts/configuration/secret/
+.. _`Terraform`: https://terraform.io
+.. _`Weaveworks`: https://weave.works
+.. _`gauge`: https://prometheus.io/docs/concepts/metric_types/#gauge
+.. _`git-sync`: https://github.com/kubernetes/git-sync
+.. _`prom-run`: https://github.com/tomwilkie/prom-run
+.. _`sidecar`: https://kubernetes.io/blog/2015/06/the-distributed-system-toolkit-patterns/
 .. _`stack`: https://docs.haskellstack.org/en/stable/README/
+.. _`terraform plan manual`: https://www.terraform.io/docs/commands/plan.html#detailed-exitcode

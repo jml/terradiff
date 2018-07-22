@@ -1,7 +1,7 @@
 # Stack uses this directory as scratch space
 .stack-work/
 # Stack generates the Cabal file from `package.yaml` via hpack
-mass-driver.cabal
+terradiff.cabal
 *~
 # Our Makefile uses this to register that Docker images have been built
 .uptodate

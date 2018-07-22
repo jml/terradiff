@@ -1,4 +1,4 @@
-name: mass-driver
+name: terradiff
 version: 0.1.0.0
 homepage: https://github.com/jml/mass-driver#readme
 license: AGPL
@@ -48,11 +48,11 @@ library:
     - unix
 
 benchmarks:
-  mass-driver-benchmarks:
+  terradiff-benchmarks:
     source-dirs: benchmarks
     main: Main.hs
     dependencies:
-      - mass-driver
+      - terradiff
       - criterion
     ghc-options:
       - -rtsopts
@@ -60,11 +60,11 @@ benchmarks:
       - -with-rtsopts=-N
 
 tests:
-  mass-driver-tests:
+  terradiff-tests:
     source-dirs: tests
     main: Main.hs
     dependencies:
-      - mass-driver
+      - terradiff
       - hedgehog
       - tasty
       - tasty-discover
@@ -76,7 +76,7 @@ tests:
       - -with-rtsopts=-N
 
 executables:
-  mass-driver:
+  terradiff:
     main: Main.hs
     source-dirs: cmd
     ghc-options:
@@ -84,6 +84,6 @@ executables:
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
-      - mass-driver
+      - terradiff
       - optparse-applicative
 
