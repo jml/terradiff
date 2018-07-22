@@ -1,6 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 -- | Tools for running Terraform.
-module MassDriver.Terraform
+module Terradiff.Terraform
   ( FlagConfig(..)
   , flags
   , Config(..)
@@ -8,7 +8,7 @@ module MassDriver.Terraform
   -- * Higher level Terraform operations.
   , Plan(..)
   , ProcessResult(..)
-  , MassDriver.Terraform.diff
+  , Terradiff.Terraform.diff
   -- * Actually using Terraform.
   , init
   , refresh

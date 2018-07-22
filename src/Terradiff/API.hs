@@ -2,8 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
--- | API definition for mass-driver.
-module MassDriver.API
+-- | API definition for terradiff.
+module Terradiff.API
   ( API
   , api
   , APIConfig
@@ -24,9 +24,9 @@ import Servant.HTML.Lucid (HTML)
 import Servant.Server (hoistServer)
 import Servant.Utils.StaticFiles (serveDirectoryWebApp)
 
-import MassDriver.Poll (Poll)
-import qualified MassDriver.Poll as Poll
-import qualified MassDriver.Terraform as Terraform
+import Terradiff.Poll (Poll)
+import qualified Terradiff.Poll as Poll
+import qualified Terradiff.Terraform as Terraform
 
 -- | Configuration for the API. Mostly used for the HTML rendering.
 data APIConfig
@@ -72,7 +72,7 @@ data Config
   , planPoller :: Poll Terraform.Plan
   }
 
--- | mass-driver API definition.
+-- | terradiff API definition.
 type API
   = "api" :> "plan" :> Get '[HTML] (Page TerraformPlan)
   :<|> StaticResources
@@ -94,7 +94,7 @@ server :: Config -> Servant.Server API
 server config = hoistServer api (`runReaderT` config)
   ( viewTerraformPlan
     :<|> serveDirectoryWebApp (staticDir (apiConfig config))
-    :<|> makePage "mass-driver" Root
+    :<|> makePage "terradiff" Root
   )
 
 
@@ -112,7 +112,7 @@ instance ToHtml Root where
   toHtml _ =
     div_ [class_ "jumbotron"] $
       div_ [class_ "container"] $ do
-        h1_ [class_ "display-3"] "mass-driver"
+        h1_ [class_ "display-3"] "terradiff"
         p_ "Automatically apply Terraform configurations for great impact."
 
 -- | Simple wrapper for 'Plan' type so we can have all our HTML in one place.
@@ -142,7 +142,7 @@ instance ToHtml TerraformPlan where
             dt_ "stderr"
             dd_ $ pre_ (toHtml processError)
 
--- | A standard HTML page in the mass-driver app.
+-- | A standard HTML page in the terradiff app.
 data Page a
   = Page
   { config :: APIConfig -- ^ The configuration for the app
