@@ -38,6 +38,8 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Char8 as Char8
 import Data.String (String)
 import qualified Options.Applicative as Opt
+import qualified Prometheus
+import qualified System.Clock as Clock
 import System.Posix (getWorkingDirectory)
 import qualified System.Process as Process
 import Text.Show (Show(..))
@@ -105,7 +107,11 @@ data Config
   , awsCredentials :: Maybe AWSCredentials
     -- | Optional GitHub credentials
   , gitHubToken :: Maybe GitHubToken
-  } deriving (Eq, Show)
+    -- | How long Terraform commands take to run.
+  , commandDuration :: Prometheus.Metric (Prometheus.Vector (String, String) Prometheus.Histogram)
+    -- | Result of latest 'terraform plan' command.
+  , planExitCode :: Prometheus.Metric Prometheus.Gauge
+  }
 
 -- | Convert command-line configuration into something we can actually use.
 -- XXX: This doesn't do any validation, so the function name is pretty terrible.
@@ -122,12 +128,36 @@ validateFlagConfig FlagConfig{terraformBinary, workingDirectory, flagTerraformPa
   workDir <- maybe (liftIO getWorkingDirectory) pure workingDirectory
   -- Path to configs is the working directory if not specified.
   let tfPath = fromMaybe workDir flagTerraformPath
-  pure $ Config terraformBinary tfPath workDir awsCreds gitHubToken
+  commandDuration <- liftIO $ Prometheus.registerIO commandDurationMetric
+  planExitCode <- liftIO $ Prometheus.registerIO planExitCodeMetric
+  pure $ Config terraformBinary tfPath workDir awsCreds gitHubToken commandDuration planExitCode
+
+-- | Metric used to report on how long commands take to run.
+commandDurationMetric :: IO (Prometheus.Metric (Prometheus.Vector (String, String) Prometheus.Histogram))
+commandDurationMetric =
+  Prometheus.vector ("command" :: String, "exit_code" :: String)
+  (Prometheus.histogram
+    (Prometheus.Info
+      "terradiff_terraform_command_duration_seconds"
+      "How long Terraform commands take to run")
+    Prometheus.defaultBuckets)
+
+-- | Metric used to export the current state of the terraform diff.
+planExitCodeMetric :: IO (Prometheus.Metric Prometheus.Gauge)
+planExitCodeMetric =
+  Prometheus.gauge
+  (Prometheus.Info
+    "terradiff_plan_exit_code"
+    "The exit code of the latest run of 'terraform plan'.")
 
 -- | Run Terraform.
 runTerraform :: Config -> ByteString -> [ByteString] -> IO ProcessResult
-runTerraform Config{terraformBinary, workingDirectory, awsCredentials} cmd args = do
+runTerraform Config{terraformBinary, workingDirectory, awsCredentials, commandDuration} cmd args = do
+  start <- Clock.getTime Clock.Monotonic
   (exitCode, out, err) <- Process.readCreateProcessWithExitCode process ""
+  end <- Clock.getTime Clock.Monotonic
+  let duration = Clock.toNanoSecs (end `Clock.diffTimeSpec` start) % 1000000000
+  Prometheus.withLabel (toS cmd, exitLabel exitCode) (Prometheus.observe (fromRational duration)) commandDuration
   pure (ProcessResult (toS cmd) exitCode (toS out) (toS err))
   where
     process = (Process.proc terraformBinary (map toS (cmd:args)))
@@ -144,13 +174,20 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials} cmd args 
           ] <> awsCreds
     awsCreds = maybe [] awsCredentialsToEnvVars awsCredentials
 
+    exitLabel ExitSuccess = "0" :: String
+    exitLabel (ExitFailure n) = Protolude.show n
+
 -- | Get a Terraform "diff", actually the results of @terraform plan@.
 diff :: Config -> IO Plan
 diff terraformConfig = do
   -- TODO: Better error control. Don't run 'plan' if 'refresh' fails.
   refreshResult <- refresh terraformConfig
   planResult <- plan terraformConfig
+  Prometheus.setGauge (exitGauge planResult) (planExitCode terraformConfig)
   pure $ Plan refreshResult planResult
+  where
+    exitGauge (ProcessResult _ ExitSuccess _ _) = 0.0
+    exitGauge (ProcessResult _ (ExitFailure n) _ _) = fromIntegral n
 
 -- | The results of @terraform plan@.
 --
