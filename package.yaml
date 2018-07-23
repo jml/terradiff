@@ -1,6 +1,6 @@
 name: terradiff
 version: 0.1.0.0
-homepage: https://github.com/jml/mass-driver#readme
+homepage: https://github.com/jml/terradiff#readme
 license: AGPL
 author: Jonathan Lange
 maintainer: jml@mumak.net
@@ -16,7 +16,7 @@ category: Web
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README file.
-description: Please see the README on GitHub at <https://github.com/jml/mass-driver#readme>
+description: Please see the README on GitHub at <https://github.com/jml/terradiff#readme>
 
 ghc-options: -Wall -Werror
 default-extensions:

@@ -63,7 +63,7 @@ flags =
     parseURI = note "Must be an absolute URL" . URI.parseAbsoluteURI
 
     upstreamURL = fromMaybe (panic ("Invalid source code URI in source code: " <> toS upstreamURL')) (URI.parseAbsoluteURI upstreamURL')
-    upstreamURL' = "https://github.com/jml/mass-driver"
+    upstreamURL' = "https://github.com/jml/terradiff"
 
 -- | Configuration from the whole application, used in various handlers.
 data Config
