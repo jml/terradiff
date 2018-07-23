@@ -140,7 +140,7 @@ commandDurationMetric =
     (Prometheus.Info
       "terradiff_terraform_command_duration_seconds"
       "How long Terraform commands take to run")
-    Prometheus.defaultBuckets)
+    (Prometheus.linearBuckets 0.0 2.0 12))  -- `terraform` generally takes a few seconds to run.
 
 -- | Metric used to export the current state of the terraform diff.
 planExitCodeMetric :: IO (Prometheus.Metric Prometheus.Gauge)
