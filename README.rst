@@ -2,8 +2,13 @@
 terradiff
 =========
 
-.. image:: https://circleci.com/gh/jml/mass-driver/tree/master.svg?style=svg
-    :target: https://circleci.com/gh/jml/mass-driver/tree/master
+.. image:: https://circleci.com/gh/jml/terradiff/tree/master.svg?style=svg
+    :target: https://circleci.com/gh/jml/terradiff/tree/master
+    :alt: CircleCI build of master
+
+.. image:: https://quay.io/repository/jml0/terradiff/status
+    :target: https://quay.io/repository/jml0/terradiff
+    :alt: Docker Repository on Quay
 
 Get told when reality no longer matches your Terraform configuration.
 
