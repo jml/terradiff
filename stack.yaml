@@ -31,3 +31,5 @@ image:
     name: quay.io/jml0/terradiff
     executables:
       - terradiff
+    entrypoints:
+      - terradiff
