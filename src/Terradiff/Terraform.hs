@@ -152,7 +152,7 @@ planExitCodeMetric =
 
 -- | Run Terraform.
 runTerraform :: Config -> ByteString -> [ByteString] -> IO ProcessResult
-runTerraform Config{terraformBinary, workingDirectory, awsCredentials, commandDuration} cmd args = do
+runTerraform Config{terraformBinary, workingDirectory, awsCredentials, gitHubToken, commandDuration} cmd args = do
   start <- Clock.getTime Clock.Monotonic
   (exitCode, out, err) <- Process.readCreateProcessWithExitCode process ""
   end <- Clock.getTime Clock.Monotonic
@@ -171,8 +171,9 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials, commandDu
           , ("TF_INPUT", "0")  -- Do not prompt for user input
           , ("TF_CLI_ARGS", "-no-color")  -- Don't use color, for better HTML rendering
           , ("HOME", workingDirectory)  -- Terraform needs the home directory for variable expansion
-          ] <> awsCreds
+          ] <> awsCreds <> gitHubCreds
     awsCreds = maybe [] awsCredentialsToEnvVars awsCredentials
+    gitHubCreds = maybe [] gitHubTokenToEnvVars gitHubToken
 
     exitLabel ExitSuccess = "0" :: String
     exitLabel (ExitFailure n) = Protolude.show n
@@ -311,6 +312,14 @@ newtype GitHubToken = GitHubToken (Secret ByteString) deriving (Eq, Show)
 -- | Read a GitHub token from a file.
 gitHubTokenFromFile :: MonadIO io => FilePath -> io GitHubToken
 gitHubTokenFromFile = map (GitHubToken . Secret) . readSecretFile
+
+-- | Output GitHub token as environment variables.
+--
+-- It's only one variable, but we emit it as a list for consistency with
+-- 'awsCredentialsToEnvVars'.
+gitHubTokenToEnvVars :: GitHubToken -> [(String, String)]
+gitHubTokenToEnvVars (GitHubToken token) =
+  [ ("GITHUB_TOKEN", toS (revealSecret token)) ]
 
 
 -- | Read a "secret" from a file that was probably mounted from a Kubernetes secret.
