@@ -181,10 +181,14 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials, commandDu
 diff :: Config -> IO Plan
 diff terraformConfig = do
   -- TODO: Better error control. Don't run 'plan' if 'refresh' fails.
+
+  -- Run 'init' before the diff because there's no better way of asserting
+  -- that we are running in an initialised workspace.
+  initResult <- init terraformConfig
   refreshResult <- refresh terraformConfig
   planResult <- plan terraformConfig
   Prometheus.setGauge (exitGauge planResult) (planExitCode terraformConfig)
-  pure $ Plan refreshResult planResult
+  pure $ Plan initResult refreshResult planResult
   where
     exitGauge (ProcessResult _ ExitSuccess _ _) = 0.0
     exitGauge (ProcessResult _ (ExitFailure n) _ _) = fromIntegral n
@@ -195,7 +199,8 @@ diff terraformConfig = do
 -- quite different in the future.
 data Plan
   = Plan
-  { refreshResult :: ProcessResult
+  { initResult :: ProcessResult
+  , refreshResult :: ProcessResult
   , planResult :: ProcessResult
   } deriving (Eq, Show)
 

@@ -120,9 +120,10 @@ newtype TerraformPlan = TerraformPlan Terraform.Plan deriving (Eq, Show)
 
 instance ToHtml TerraformPlan where
   toHtmlRaw = toHtml
-  toHtml (TerraformPlan Terraform.Plan{Terraform.refreshResult, Terraform.planResult}) =
+  toHtml (TerraformPlan Terraform.Plan{Terraform.initResult, Terraform.refreshResult, Terraform.planResult}) =
     div_ [class_ "container"] $ do
       h1_ "terraform plan"
+      processToHtml initResult
       processToHtml refreshResult
       processToHtml planResult
     where
