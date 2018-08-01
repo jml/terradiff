@@ -74,9 +74,8 @@ data Config
 
 -- | terradiff API definition.
 type API
-  = "api" :> "plan" :> Get '[HTML] (Page TerraformPlan)
-  :<|> StaticResources
-  :<|> Get '[HTML] (Page Root)
+  = StaticResources
+    :<|> Get '[HTML] (Page TerraformPlan)
 
 -- | Where all of our stylesheets live.
 type StaticResources = "static" :> Raw
@@ -92,9 +91,8 @@ app apiConfig terraformConfig = Servant.serve api (server (Config apiConfig terr
 -- | Server-side implementation of 'API'.
 server :: Config -> Servant.Server API
 server config = hoistServer api (`runReaderT` config)
-  ( viewTerraformPlan
-    :<|> serveDirectoryWebApp (staticDir (apiConfig config))
-    :<|> makePage "terradiff" Root
+  ( serveDirectoryWebApp (staticDir (apiConfig config))
+    :<|> viewTerraformPlan
   )
 
 
@@ -103,17 +101,6 @@ viewTerraformPlan = do
   Config{planPoller} <- ask
   plan <- liftIO (atomically (Poll.waitForResult planPoller))
   makePage "terraform plan" (TerraformPlan plan)
-
--- | Dummy type to represent the root page of the API.
-data Root = Root deriving (Eq, Show)
-
-instance ToHtml Root where
-  toHtmlRaw = toHtml
-  toHtml _ =
-    div_ [class_ "jumbotron"] $
-      div_ [class_ "container"] $ do
-        h1_ [class_ "display-3"] "terradiff"
-        p_ "Automatically apply Terraform configurations for great impact."
 
 -- | Simple wrapper for 'Plan' type so we can have all our HTML in one place.
 newtype TerraformPlan = TerraformPlan Terraform.Plan deriving (Eq, Show)
