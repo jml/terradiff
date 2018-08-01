@@ -74,7 +74,7 @@ run Config{serverConfig, apiConfig, terraformConfig, pollInterval} = do
                 "output:\n" <> Terraform.processOutput initResult <> "\n" <>
                 "error:\n" <> Terraform.processError initResult <> "\n"))
     _ ->
-      Poll.runWhilePolling (Terraform.diff tfConfig) (Duration.toDiffTime pollInterval)
+      Poll.runWhilePolling (runExceptT $ Terraform.diff tfConfig) (Duration.toDiffTime pollInterval)
         (JmlSvc.run "terradiff" serverConfig . API.app apiConfig)
 
 someFunc :: Int -> Int -> Int

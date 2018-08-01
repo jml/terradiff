@@ -69,7 +69,7 @@ flags =
 data Config
   = Config
   { apiConfig :: APIConfig
-  , planPoller :: Poll Terraform.Plan
+  , planPoller :: Poll PlanResult
   }
 
 -- | terradiff API definition.
@@ -85,7 +85,7 @@ api :: Proxy API
 api = Proxy
 
 -- | WAI application that implements 'API'.
-app :: APIConfig -> Poll Terraform.Plan -> Servant.Application
+app :: APIConfig -> Poll PlanResult -> Servant.Application
 app apiConfig terraformConfig = Servant.serve api (server (Config apiConfig terraformConfig))
 
 -- | Server-side implementation of 'API'.
@@ -102,25 +102,30 @@ viewTerraformPlan = do
   plan <- liftIO (atomically (Poll.waitForResult planPoller))
   makePage "terraform plan" (TerraformPlan plan)
 
+-- | Results of running @terraform plan@. This is what we get out of the poller.
+type PlanResult = Either Terraform.Error (Maybe Terraform.Diff)
+
 -- | Simple wrapper for 'Plan' type so we can have all our HTML in one place.
-newtype TerraformPlan = TerraformPlan Terraform.Plan deriving (Eq, Show)
+newtype TerraformPlan = TerraformPlan PlanResult deriving (Eq, Show)
 
 instance ToHtml TerraformPlan where
   toHtmlRaw = toHtml
-  toHtml (TerraformPlan Terraform.Plan{Terraform.initResult, Terraform.refreshResult, Terraform.planResult}) =
+  toHtml (TerraformPlan planResult) =
     div_ [class_ "container"] $ do
       h1_ "terraform plan"
-      processToHtml initResult
-      processToHtml refreshResult
-      processToHtml planResult
+      case planResult of
+        Left (Terraform.ProcessError processResult) -> processToHtml processResult
+        Right (Just (Terraform.Diff diffOutput)) -> do
+          h2_ "diff!"
+          pre_ (toHtml diffOutput)
+        Right Nothing -> h2_ "No diff"
     where
       processToHtml :: Monad m => Terraform.ProcessResult -> HtmlT m ()
       processToHtml Terraform.ProcessResult { Terraform.processTitle
                                             , Terraform.processExitCode
                                             , Terraform.processOutput
                                             , Terraform.processError
-                                            } =
-        div_ [class_ "container"] $ do
+                                            } = do
           h2_ (toHtml processTitle)
           dl_ $ do
             dt_ "Exit code"

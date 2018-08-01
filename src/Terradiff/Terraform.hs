@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 -- | Tools for running Terraform.
 --
@@ -23,8 +24,9 @@ module Terradiff.Terraform
   , Config(..)
   , validateFlagConfig
   -- * Higher level Terraform operations.
-  , Plan(..)
   , ProcessResult(..)
+  , Diff(..)
+  , Error(..)
   , Terradiff.Terraform.diff
   -- * Actually using Terraform.
   , init
@@ -191,31 +193,33 @@ runTerraform Config{terraformBinary, workingDirectory, terraformLogLevel, awsCre
     exitLabel (ExitFailure n) = Protolude.show n
 
 -- | Get a Terraform "diff", actually the results of @terraform plan@.
-diff :: Config -> IO Plan
+diff :: Config -> ExceptT Error IO (Maybe Diff)
 diff terraformConfig = do
-  -- TODO: Better error control. Don't run 'plan' if 'refresh' fails.
-
   -- Run 'init' before the diff because there's no better way of asserting
   -- that we are running in an initialised workspace.
-  initResult <- init terraformConfig
-  refreshResult <- refresh terraformConfig
-  planResult <- plan terraformConfig
-  Prometheus.setGauge (exitGauge planResult) (planExitCode terraformConfig)
-  pure $ Plan initResult refreshResult planResult
+  initResult <- liftIO $ init terraformConfig
+  void $ handleError initResult
+  refreshResult <- liftIO $ refresh terraformConfig
+  void $ handleError refreshResult
+  planResult <- liftIO $ plan terraformConfig
+  let planCode = processExitCode planResult
+  liftIO $ Prometheus.setGauge (exitGauge planCode) (planExitCode terraformConfig)
+  case processExitCode planResult of
+    ExitSuccess -> pure Nothing
+    ExitFailure 2 -> pure (Just (Diff (processOutput planResult)))
+    ExitFailure _ -> throwError (ProcessError planResult)
   where
-    exitGauge (ProcessResult _ ExitSuccess _ _) = 0.0
-    exitGauge (ProcessResult _ (ExitFailure n) _ _) = fromIntegral n
+    exitGauge ExitSuccess = 0.0
+    exitGauge (ExitFailure n) = fromIntegral n
 
--- | The results of @terraform plan@.
---
--- Although we'll probably always want a type for this, it will probably look
--- quite different in the future.
-data Plan
-  = Plan
-  { initResult :: ProcessResult
-  , refreshResult :: ProcessResult
-  , planResult :: ProcessResult
-  } deriving (Eq, Show)
+    handleError (ProcessResult _ ExitSuccess out _) = pure out
+    handleError failed = throwError (ProcessError failed)
+
+-- | The diff output from @terraform plan@. Generate this with 'diff'.
+newtype Diff = Diff ByteString deriving (Eq, Show)
+
+-- | An error that occurs when running Terraform.
+newtype Error = ProcessError ProcessResult deriving (Eq, Show)
 
 -- | The result of running a process. Includes a field for describing the
 -- process to make HTML rendering easier.
