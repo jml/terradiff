@@ -53,6 +53,8 @@ data FlagConfig
   , flagTerraformPath :: Maybe FilePath
     -- | The terraform working directory. We will run 'terraform init' here.
   , workingDirectory :: Maybe FilePath
+    -- | Optional Terraform log level. If unspecified, we let Terraform decide.
+  , flagTerraformLogLevel :: Maybe String
     -- | Files containing optional AWS credentials
   , awsCredentialsFiles :: Maybe AWSCredentialsFiles
     -- | File to load an optional GitHub token from
@@ -84,6 +86,13 @@ flags =
           [ Opt.long "terraform-working-directory"
           , Opt.help "Where we will run terraform."
           ]))
+  <*> optional
+        (Opt.option
+         Opt.str
+         (fold
+          [ Opt.long "terraform-log-level"
+          , Opt.help "Log level for Terraform itself. Useful for debugging errors. One of 'TRACE', 'DEBUG', 'INFO', 'WARN', or 'ERROR'."
+          ]))
   <*> optional awsCredentialsFlags
   <*> optional
         (Opt.option
@@ -103,6 +112,8 @@ data Config
   , terraformPath :: FilePath
     -- | The terraform working directory. We will run 'terraform init' here.
   , workingDirectory :: FilePath
+    -- | Optional Terraform log level. If unspecified, we let Terraform decide.
+  , terraformLogLevel :: Maybe String
     -- | Optional AWS credentials
   , awsCredentials :: Maybe AWSCredentials
     -- | Optional GitHub credentials
@@ -121,7 +132,7 @@ data Config
 -- actually relevant for correct operation, as the directory can always be
 -- deleted or turned into a file while we are running.
 validateFlagConfig :: MonadIO io => FlagConfig -> io Config
-validateFlagConfig FlagConfig{terraformBinary, workingDirectory, flagTerraformPath, awsCredentialsFiles, gitHubTokenFile} = do
+validateFlagConfig FlagConfig{terraformBinary, workingDirectory, flagTerraformPath, flagTerraformLogLevel, awsCredentialsFiles, gitHubTokenFile} = do
   awsCreds <- traverse awsCredentialsFromFiles awsCredentialsFiles
   gitHubToken <- traverse gitHubTokenFromFile gitHubTokenFile
   -- Working directory is the current directory if not specified
@@ -130,7 +141,7 @@ validateFlagConfig FlagConfig{terraformBinary, workingDirectory, flagTerraformPa
   let tfPath = fromMaybe workDir flagTerraformPath
   commandDuration <- liftIO $ Prometheus.registerIO commandDurationMetric
   planExitCode <- liftIO $ Prometheus.registerIO planExitCodeMetric
-  pure $ Config terraformBinary tfPath workDir awsCreds gitHubToken commandDuration planExitCode
+  pure $ Config terraformBinary tfPath workDir flagTerraformLogLevel awsCreds gitHubToken commandDuration planExitCode
 
 -- | Metric used to report on how long commands take to run.
 commandDurationMetric :: IO (Prometheus.Metric (Prometheus.Vector (String, String) Prometheus.Histogram))
@@ -152,7 +163,7 @@ planExitCodeMetric =
 
 -- | Run Terraform.
 runTerraform :: Config -> ByteString -> [ByteString] -> IO ProcessResult
-runTerraform Config{terraformBinary, workingDirectory, awsCredentials, gitHubToken, commandDuration} cmd args = do
+runTerraform Config{terraformBinary, workingDirectory, terraformLogLevel, awsCredentials, gitHubToken, commandDuration} cmd args = do
   start <- Clock.getTime Clock.Monotonic
   (exitCode, out, err) <- Process.readCreateProcessWithExitCode process ""
   end <- Clock.getTime Clock.Monotonic
@@ -171,7 +182,8 @@ runTerraform Config{terraformBinary, workingDirectory, awsCredentials, gitHubTok
           , ("TF_INPUT", "0")  -- Do not prompt for user input
           , ("TF_CLI_ARGS", "-no-color")  -- Don't use color, for better HTML rendering
           , ("HOME", workingDirectory)  -- Terraform needs the home directory for variable expansion
-          ] <> awsCreds <> gitHubCreds
+          ] <> logLevel <> awsCreds <> gitHubCreds
+    logLevel = maybe [] (\x -> [("TF_LOG", x)]) terraformLogLevel
     awsCreds = maybe [] awsCredentialsToEnvVars awsCredentials
     gitHubCreds = maybe [] gitHubTokenToEnvVars gitHubToken
 
