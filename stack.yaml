@@ -20,6 +20,7 @@ extra-deps:
   - base-compat-0.10.1
   - exceptions-0.10.0
   - http-api-data-0.3.8.1
+  - monad-logger-0.3.29
   - servant-0.14
   - servant-lucid-0.8.1
   - servant-server-0.14

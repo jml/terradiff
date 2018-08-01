@@ -36,6 +36,7 @@ module Terradiff.Terraform
 
 import Protolude
 
+import Control.Monad.Logger.CallStack
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Char8 as Char8
 import Data.String (String)
@@ -133,7 +134,7 @@ data Config
 -- exists and is a directory? Possibly helpful to the end user, but not
 -- actually relevant for correct operation, as the directory can always be
 -- deleted or turned into a file while we are running.
-validateFlagConfig :: MonadIO io => FlagConfig -> io Config
+validateFlagConfig :: (HasCallStack, MonadIO io) => FlagConfig -> io Config
 validateFlagConfig FlagConfig{terraformBinary, workingDirectory, flagTerraformPath, flagTerraformLogLevel, awsCredentialsFiles, gitHubTokenFile} = do
   awsCreds <- traverse awsCredentialsFromFiles awsCredentialsFiles
   gitHubToken <- traverse gitHubTokenFromFile gitHubTokenFile
@@ -146,7 +147,7 @@ validateFlagConfig FlagConfig{terraformBinary, workingDirectory, flagTerraformPa
   pure $ Config terraformBinary tfPath workDir flagTerraformLogLevel awsCreds gitHubToken commandDuration planExitCode
 
 -- | Metric used to report on how long commands take to run.
-commandDurationMetric :: IO (Prometheus.Metric (Prometheus.Vector (String, String) Prometheus.Histogram))
+commandDurationMetric :: HasCallStack => IO (Prometheus.Metric (Prometheus.Vector (String, String) Prometheus.Histogram))
 commandDurationMetric =
   Prometheus.vector ("command" :: String, "exit_code" :: String)
   (Prometheus.histogram
@@ -156,7 +157,7 @@ commandDurationMetric =
     (Prometheus.linearBuckets 0.0 2.0 12))  -- `terraform` generally takes a few seconds to run.
 
 -- | Metric used to export the current state of the terraform diff.
-planExitCodeMetric :: IO (Prometheus.Metric Prometheus.Gauge)
+planExitCodeMetric :: HasCallStack => IO (Prometheus.Metric Prometheus.Gauge)
 planExitCodeMetric =
   Prometheus.gauge
   (Prometheus.Info
@@ -164,16 +165,19 @@ planExitCodeMetric =
     "The exit code of the latest run of 'terraform plan'.")
 
 -- | Run Terraform.
-runTerraform :: Config -> ByteString -> [ByteString] -> IO ProcessResult
+runTerraform :: (MonadLogger m, MonadIO m, HasCallStack) => Config -> ByteString -> [ByteString] -> m ProcessResult
 runTerraform Config{terraformBinary, workingDirectory, terraformLogLevel, awsCredentials, gitHubToken, commandDuration} cmd args = do
-  start <- Clock.getTime Clock.Monotonic
-  (exitCode, out, err) <- Process.readCreateProcessWithExitCode process ""
-  end <- Clock.getTime Clock.Monotonic
+  start <- liftIO $ Clock.getTime Clock.Monotonic
+  (exitCode, out, err) <- liftIO $ Process.readCreateProcessWithExitCode process ""
+  end <- liftIO $ Clock.getTime Clock.Monotonic
   let duration = Clock.toNanoSecs (end `Clock.diffTimeSpec` start) % 1000000000
-  Prometheus.withLabel (toS cmd, exitLabel exitCode) (Prometheus.observe (fromRational duration)) commandDuration
-  pure (ProcessResult (toS cmd) exitCode (toS out) (toS err))
+  liftIO $ Prometheus.withLabel (toS cmd, exitLabel exitCode) (Prometheus.observe (fromRational duration)) commandDuration
+  let result = ProcessResult (toS cmd) exitCode (toS out) (toS err)
+  logDebug $ "Ran terraform process: " <> Protolude.show process <> " ; " <> Protolude.show result
+  pure result
   where
-    process = (Process.proc terraformBinary (map toS (cmd:args)))
+    terraformArgs = map toS (cmd:args)
+    process = (Process.proc terraformBinary terraformArgs)
               { Process.env = Just env
               , Process.cwd = Just workingDirectory
               }
@@ -193,15 +197,15 @@ runTerraform Config{terraformBinary, workingDirectory, terraformLogLevel, awsCre
     exitLabel (ExitFailure n) = Protolude.show n
 
 -- | Get a Terraform "diff", actually the results of @terraform plan@.
-diff :: Config -> ExceptT Error IO (Maybe Diff)
+diff :: (MonadLogger m, MonadIO m, MonadError Error m) => Config -> m (Maybe Diff)
 diff terraformConfig = do
   -- Run 'init' before the diff because there's no better way of asserting
   -- that we are running in an initialised workspace.
-  initResult <- liftIO $ init terraformConfig
+  initResult <- init terraformConfig
   void $ handleError initResult
-  refreshResult <- liftIO $ refresh terraformConfig
+  refreshResult <- refresh terraformConfig
   void $ handleError refreshResult
-  planResult <- liftIO $ plan terraformConfig
+  planResult <- plan terraformConfig
   let planCode = processExitCode planResult
   liftIO $ Prometheus.setGauge (exitGauge planCode) (planExitCode terraformConfig)
   case processExitCode planResult of
@@ -241,21 +245,19 @@ data ProcessResult
 -- parameter, thus "guaranteeing" that init has been run. 'Guarantee' in scare
 -- quotes as it wouldn't prevent someone messing with the .terraform directory
 -- behind our backs.
-init :: Config -> IO ProcessResult
-init config =
-  runTerraform config "init" [toS (terraformPath config)]
+init :: (MonadIO m, MonadLogger m) => Config -> m ProcessResult
+init config = runTerraform config "init" [toS (terraformPath config)]
 
 -- | Refresh the Terraform state by examining actual infrastructure.
 --
 -- Run this before 'plan' to ensure your plans are based on reality.
 --
 -- NOTE: The output of this command might include secrets.
-refresh :: Config -> IO ProcessResult
-refresh config =
-  runTerraform config "refresh" [toS (terraformPath config)]
+refresh :: (MonadIO m, MonadLogger m) => Config -> m ProcessResult
+refresh config = runTerraform config "refresh" [toS (terraformPath config)]
 
 -- | Generate a Terraform plan.
-plan :: Config -> IO ProcessResult
+plan :: (MonadIO m, MonadLogger m) => Config -> m ProcessResult
 plan config =
   runTerraform config "plan" ["-detailed-exitcode", "-refresh=false", toS (terraformPath config)]
 

@@ -27,6 +27,7 @@ import Protolude
 
 import qualified Data.Attoparsec.Text as A
 import qualified JmlSvc
+import qualified JmlSvc.Logging
 import qualified Options.Applicative as Opt
 
 import qualified Terradiff.API as API
@@ -67,15 +68,10 @@ options = Opt.info (Opt.helper <*> parser) description
 run :: Config -> IO ()
 run Config{serverConfig, apiConfig, terraformConfig, pollInterval} = do
   tfConfig <- Terraform.validateFlagConfig terraformConfig
-  initResult <- Terraform.init tfConfig
-  case Terraform.processExitCode initResult of
-    ExitFailure n ->
-      die (toS ("'terraform init' failed: " <> show n <> "\n" <>
-                "output:\n" <> Terraform.processOutput initResult <> "\n" <>
-                "error:\n" <> Terraform.processError initResult <> "\n"))
-    _ ->
-      Poll.runWhilePolling (runExceptT $ Terraform.diff tfConfig) (Duration.toDiffTime pollInterval)
-        (JmlSvc.run "terradiff" serverConfig . API.app apiConfig (Terraform.terraformPath tfConfig))
+  Poll.runWhilePolling
+    (JmlSvc.Logging.run (JmlSvc.loggingConfig serverConfig) (runExceptT $ Terraform.diff tfConfig))
+    (Duration.toDiffTime pollInterval)
+    (JmlSvc.run "terradiff" serverConfig . API.app apiConfig (Terraform.terraformPath tfConfig))
 
 someFunc :: Int -> Int -> Int
 someFunc x y = x + y
