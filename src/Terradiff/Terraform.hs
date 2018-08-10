@@ -28,10 +28,6 @@ module Terradiff.Terraform
   , Diff(..)
   , Error(..)
   , Terradiff.Terraform.diff
-  -- * Actually using Terraform.
-  , init
-  , refresh
-  , plan
   ) where
 
 import Protolude
