@@ -168,7 +168,7 @@ runTerraform Config{terraformBinary, workingDirectory, terraformLogLevel, awsCre
   end <- liftIO $ Clock.getTime Clock.Monotonic
   let duration = Clock.toNanoSecs (end `Clock.diffTimeSpec` start) % 1000000000
   liftIO $ Prometheus.withLabel (toS cmd, exitLabel exitCode) (Prometheus.observe (fromRational duration)) commandDuration
-  let result = ProcessResult (toS cmd) exitCode (toS out) (toS err)
+  let result = ProcessResult (toS cmd) process exitCode (toS out) (toS err)
   logDebug $ "Ran terraform process: " <> Protolude.show process <> " ; " <> Protolude.show result
   pure result
   where
@@ -212,11 +212,15 @@ diff terraformConfig = do
     exitGauge ExitSuccess = 0.0
     exitGauge (ExitFailure n) = fromIntegral n
 
-    handleError (ProcessResult _ ExitSuccess out _) = pure out
+    handleError (ProcessResult _ _ ExitSuccess out _) = pure out
     handleError failed = gotError failed
 
     gotError failed = do
-      logError $ "Process failed: " <> Protolude.show failed
+      -- It's somewhat unfortunate that this will log an error when the
+      -- process fails due to a lock being held. Terraform gives us no
+      -- structured way of distinguishing these errors, so we'll just lump it
+      -- for now.
+      logError $ "Process failed: " <> formatProcessResult failed
       throwError (ProcessError failed)
 
 -- | The diff output from @terraform plan@. Generate this with 'diff'.
@@ -230,11 +234,26 @@ newtype Error = ProcessError ProcessResult deriving (Eq, Show)
 data ProcessResult
   = ProcessResult
   { processTitle :: Text
+  , processInfo :: Process.CreateProcess
   , processExitCode :: ExitCode
   , processOutput :: ByteString
   , processError :: ByteString
   } deriving (Eq, Show)
 
+
+formatProcessResult :: ProcessResult -> Text
+formatProcessResult ProcessResult{processTitle, processInfo, processExitCode, processOutput, processError} =
+  Protolude.show processTitle <> " " <> status <> ": " <> Protolude.show processExitCode <> "\n" <>
+  "Command: " <> command <> "\n" <>
+  "Output:\n----\n" <> Protolude.show processOutput <> "----\n" <>
+  "Error:\n----\n" <> Protolude.show processError <> "----\n"
+  where
+    status = case processExitCode of
+               ExitSuccess -> "succeeded"
+               _ -> "failed"
+    command = toS $ case Process.cmdspec processInfo of
+                      Process.ShellCommand cmd -> cmd
+                      Process.RawCommand cmd args -> Process.showCommandForUser cmd args
 
 -- | Initialize a Terraform working directory.
 --
