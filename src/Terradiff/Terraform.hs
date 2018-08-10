@@ -245,8 +245,8 @@ formatProcessResult :: ProcessResult -> Text
 formatProcessResult ProcessResult{processTitle, processInfo, processExitCode, processOutput, processError} =
   Protolude.show processTitle <> " " <> status <> ": " <> Protolude.show processExitCode <> "\n" <>
   "Command: " <> command <> "\n" <>
-  "Output:\n----\n" <> Protolude.show processOutput <> "----\n" <>
-  "Error:\n----\n" <> Protolude.show processError <> "----\n"
+  "Output:\n----\n" <> toS processOutput <> "----\n" <>
+  "Error:\n----\n" <> toS processError <> "----\n"
   where
     status = case processExitCode of
                ExitSuccess -> "succeeded"
