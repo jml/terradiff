@@ -207,13 +207,17 @@ diff terraformConfig = do
   case processExitCode planResult of
     ExitSuccess -> pure Nothing
     ExitFailure 2 -> pure (Just (Diff (processOutput planResult)))
-    ExitFailure _ -> throwError (ProcessError planResult)
+    ExitFailure _ -> gotError planResult
   where
     exitGauge ExitSuccess = 0.0
     exitGauge (ExitFailure n) = fromIntegral n
 
     handleError (ProcessResult _ ExitSuccess out _) = pure out
-    handleError failed = throwError (ProcessError failed)
+    handleError failed = gotError failed
+
+    gotError failed = do
+      logError $ "Process failed: " <> Protolude.show failed
+      throwError (ProcessError failed)
 
 -- | The diff output from @terraform plan@. Generate this with 'diff'.
 newtype Diff = Diff ByteString deriving (Eq, Show)
