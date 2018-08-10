@@ -37,6 +37,7 @@ library:
     - clock
     - jml-web-service
     - lucid
+    - monad-logger
     - network-uri
     - optparse-applicative
     - process
