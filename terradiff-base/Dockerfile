@@ -4,7 +4,7 @@ RUN apt-get update && apt-get -y dist-upgrade
 RUN apt-get install -y --no-install-recommends ca-certificates
 # Install terraform
 RUN apt-get -y --no-install-recommends install unzip
-ADD https://releases.hashicorp.com/terraform/0.11.7/terraform_0.11.7_linux_amd64.zip /tmp/terraform.zip
+ADD https://releases.hashicorp.com/terraform/0.11.10/terraform_0.11.10_linux_amd64.zip /tmp/terraform.zip
 RUN unzip /tmp/terraform.zip && mv terraform /usr/local/bin/terraform && rm /tmp/terraform.zip
 RUN apt-get -y remove unzip
 RUN apt-get clean && apt-get autoremove
